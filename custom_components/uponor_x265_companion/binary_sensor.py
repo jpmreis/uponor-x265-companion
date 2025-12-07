@@ -81,7 +81,10 @@ class UponorCompanionBinarySensor(BinarySensorEntity):
         self._sensor_config = BINARY_SENSOR_TYPES.get(sensor_key, {})
         
         self._attr_unique_id = f"{DOMAIN}_{thermostat_id}_{sensor_key}"
-        self._attr_name = f"{thermostat_id.replace('_', ' ')} {sensor_key.replace('_', ' ').title()}"
+        # Use custom name from coordinator if available
+        custom_name = coordinator.get_custom_name(thermostat_id)
+        sensor_name = sensor_key.replace('_', ' ').title()
+        self._attr_name = f"{custom_name} {sensor_name}"
         
         device_class = self._sensor_config.get("device_class")
         if device_class:
@@ -92,9 +95,12 @@ class UponorCompanionBinarySensor(BinarySensorEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Return device information."""
+        # Use custom name from coordinator if available
+        device_name = self._coordinator.get_custom_name(self._thermostat_id)
+        
         return DeviceInfo(
             identifiers={("uponorx265", self._thermostat_id)},
-            name=f"Thermostat {self._thermostat_id}",
+            name=device_name,
             manufacturer=MANUFACTURER,
             model=MODEL,
         )

@@ -35,6 +35,7 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
         self.client = client
         self._discovered_thermostats: Dict[str, Dict[str, Any]] = {}
         self._system_data: Dict[str, Any] = {}
+        self._custom_names: Dict[str, str] = {}
         self._last_successful_update: Optional[datetime] = None
         
     async def _async_update_data(self) -> Dict[str, Any]:
@@ -100,21 +101,33 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
                 relevant.append(var)
             elif any(key in var for key in SYSTEM_VARIABLE_MAPPING.keys()):
                 relevant.append(var)
-            elif "C1_average_room_temperature" in var:
+            # Include controller-level variables for any controller (C1, C2, C3, etc.)
+            elif any(f"C{i}_average_room_temperature" in var for i in range(1, 10)):
                 relevant.append(var)
-            elif "C1_supply_temperature" in var:
+            elif any(f"C{i}_supply_temperature" in var for i in range(1, 10)):
                 relevant.append(var)
-            elif "C1_outdoor_temperature" in var:
+            elif any(f"C{i}_outdoor_temperature" in var for i in range(1, 10)):
+                relevant.append(var)
+            # Include custom name variables
+            elif var.startswith("cust_") and var.endswith("_name"):
                 relevant.append(var)
                 
         return relevant
     
     def _process_data(self, data: Dict[str, Any]) -> None:
         """Process raw data into structured format."""
+        # First, process custom names
         for key, value in data.items():
-            if key.startswith("C1_T"):
+            if key.startswith("cust_") and key.endswith("_name"):
+                self._custom_names[key] = value
+        
+        # Then process all other data
+        for key, value in data.items():
+            # Process thermostat data for any controller (C1, C2, C3, etc.)
+            if "_T" in key and key.startswith("C"):
                 self._process_thermostat_data(key, value)
-            elif key.startswith("C1_") and "_T" not in key:
+            # Process controller data for any controller
+            elif key.startswith("C") and "_T" not in key:
                 self._process_controller_data(key, value)
             elif key.startswith("sys_"):
                 self._process_system_data(key, value)
@@ -142,7 +155,9 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
         if attribute in VARIABLE_MAPPING:
             mapped_name = VARIABLE_MAPPING[attribute]
             processed_value = self._convert_value(attribute, value)
-            self._discovered_thermostats[thermostat_id]["data"][mapped_name] = processed_value
+            # Only store the value if it's not None (which indicates unavailable/no sensor)
+            if processed_value is not None:
+                self._discovered_thermostats[thermostat_id]["data"][mapped_name] = processed_value
     
     def _process_controller_data(self, key: str, value: Any) -> None:
         """Process controller-level data."""
@@ -153,26 +168,53 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
         attribute = parts[1]
         
         if attribute == "average_room_temperature":
-            self._system_data["average_room_temperature"] = self._convert_temperature(value)
+            temp_value = self._convert_temperature(value)
+            if temp_value is not None:
+                self._system_data["average_room_temperature"] = temp_value
         elif attribute == "supply_temperature":
-            self._system_data["supply_temperature"] = self._convert_temperature(value)
+            temp_value = self._convert_temperature(value)
+            if temp_value is not None:
+                self._system_data["supply_temperature"] = temp_value
         elif attribute == "outdoor_temperature":
-            self._system_data["outdoor_temperature"] = self._convert_temperature(value)
+            temp_value = self._convert_temperature(value)
+            if temp_value is not None:
+                self._system_data["outdoor_temperature"] = temp_value
         elif attribute.startswith("stat_"):
             if attribute in VARIABLE_MAPPING:
                 mapped_name = VARIABLE_MAPPING[attribute]
-                self._system_data[mapped_name] = bool(int(value))
+                try:
+                    raw_val = int(value)
+                    if raw_val != 32767:  # Skip sentinel values
+                        self._system_data[mapped_name] = bool(raw_val)
+                except (ValueError, TypeError):
+                    pass
     
     def _process_system_data(self, key: str, value: Any) -> None:
         """Process system-level data."""
         if key in SYSTEM_VARIABLE_MAPPING:
             mapped_name = SYSTEM_VARIABLE_MAPPING[key]
-            self._system_data[mapped_name] = bool(int(value))
+            try:
+                raw_val = int(value)
+                if raw_val != 32767:  # Skip sentinel values
+                    self._system_data[mapped_name] = bool(raw_val)
+            except (ValueError, TypeError):
+                pass
     
     def _convert_value(self, attribute: str, value: Any) -> Any:
         """Convert raw value to appropriate type."""
+        try:
+            raw_val = int(value)
+            # 32767 is INT16_MAX, used as sentinel for "not available" or "no sensor"
+            if raw_val == 32767:
+                return None
+        except (ValueError, TypeError):
+            pass  # Not an integer, continue with normal processing
+            
         if attribute in ["rh", "rh_setpoint", "head1_valve_pos_percent", "head2_valve_pos_percent"]:
-            return int(value)
+            try:
+                return int(value)
+            except (ValueError, TypeError):
+                return None
         elif attribute in ["maximum_floor_setpoint", "minimum_floor_setpoint", 
                           "external_temperature", "eco_offset"]:
             return self._convert_temperature(value)
@@ -184,16 +226,19 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
             except (ValueError, TypeError):
                 return value
     
-    def _convert_temperature(self, value: Any) -> float:
+    def _convert_temperature(self, value: Any) -> Optional[float]:
         """Convert temperature value from tenths of Fahrenheit to Celsius."""
         try:
             raw_val = int(value)
+            # 32767 is INT16_MAX, used as sentinel for "not available" or "no sensor"
+            if raw_val == 32767:
+                return None
             # Convert from tenths of Fahrenheit to Celsius
             fahrenheit = raw_val / 10.0
             celsius = (fahrenheit - 32) * 5.0 / 9.0
             return round(celsius, 1)
         except (ValueError, TypeError):
-            return 0.0
+            return None
     
     def get_thermostat_data(self, thermostat_id: str) -> Dict[str, Any]:
         """Get data for a specific thermostat."""
@@ -202,6 +247,23 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
     def get_system_data(self) -> Dict[str, Any]:
         """Get system-level data."""
         return self._system_data
+    
+    def get_custom_name(self, identifier: str) -> str:
+        """Get custom name for a thermostat or controller."""
+        # Check for thermostat custom name (e.g., cust_C1_T1_name)
+        thermostat_key = f"cust_{identifier}_name"
+        if thermostat_key in self._custom_names:
+            return self._custom_names[thermostat_key]
+        
+        # Check for controller custom name (e.g., cust_Controller1_Name for C1)
+        if identifier.startswith("C"):
+            controller_num = identifier.split("_")[0][1:]  # C1 -> 1
+            controller_key = f"cust_Controller{controller_num}_Name"
+            if controller_key in self._custom_names:
+                return self._custom_names[controller_key]
+        
+        # Fallback to generic name
+        return identifier.replace("_", " ")
     
     @property
     def thermostats(self) -> List[str]:
