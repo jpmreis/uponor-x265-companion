@@ -35,7 +35,7 @@ class JNAPClient:
         """Get attributes from the controller."""
         headers = {
             "Content-Type": "application/json",
-            "X-JNAP-Action": "GetAttributes",
+            "x-jnap-action": "http://phyn.com/jnap/uponorsky/GetAttributes",
         }
         
         payload = {}
@@ -52,7 +52,8 @@ class JNAPClient:
                 if response.status == 200:
                     text = await response.text()
                     try:
-                        return json.loads(text)
+                        raw_response = json.loads(text)
+                        return self._parse_response(raw_response)
                     except json.JSONDecodeError:
                         _LOGGER.error("Failed to decode JSON response: %s", text)
                         return None
@@ -98,6 +99,19 @@ class JNAPClient:
         except Exception as err:
             _LOGGER.error("Failed to set attribute %s: %s", variable, err)
             return False
+    
+    def _parse_response(self, raw_response: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the nested JNAP response format into a flat dictionary."""
+        # Handle the format: {"result": "OK", "output": {"vars": [{"waspVarName": "...", "waspVarValue": "..."}]}}
+        if "output" in raw_response and "vars" in raw_response["output"]:
+            parsed_data = {}
+            for var_entry in raw_response["output"]["vars"]:
+                if "waspVarName" in var_entry and "waspVarValue" in var_entry:
+                    parsed_data[var_entry["waspVarName"]] = var_entry["waspVarValue"]
+            return parsed_data
+        
+        # Fallback for other formats or direct variable responses
+        return raw_response
     
     async def discover_variables(self) -> List[str]:
         """Discover all available variables from the controller."""
