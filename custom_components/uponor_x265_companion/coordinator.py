@@ -40,6 +40,7 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
         
     async def _async_update_data(self) -> Dict[str, Any]:
         """Fetch data from controller."""
+        _LOGGER.debug("Starting data update cycle")
         try:
             all_variables = await self.client.discover_variables()
             
@@ -67,8 +68,8 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
             self._process_data(data)
             self._last_successful_update = datetime.now()
             
-            _LOGGER.debug("Processed data - found %d thermostats, %d system variables", 
-                         len(self._discovered_thermostats), len(self._system_data))
+            _LOGGER.debug("Update successful - found %d thermostats, %d system variables. Last update: %s", 
+                         len(self._discovered_thermostats), len(self._system_data), self._last_successful_update)
             
             async_dispatcher_send(self.hass, SIGNAL_UPDATE)
             
@@ -82,14 +83,19 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Error fetching data: %s", err)
             # Only raise UpdateFailed if this is the first update or we haven't had a successful update in a while
             if not self._last_successful_update or (datetime.now() - self._last_successful_update) > timedelta(minutes=10):
+                _LOGGER.error("Raising UpdateFailed - no recent successful updates")
                 raise UpdateFailed(f"Error communicating with controller: {err}") from err
             else:
                 # For temporary failures, log but don't fail the entire update
-                _LOGGER.warning("Temporary failure communicating with controller, using cached data: %s", err)
+                time_since_last = datetime.now() - self._last_successful_update
+                _LOGGER.warning("Temporary failure communicating with controller (last success %s ago), using cached data: %s", 
+                              time_since_last, err)
+                # Update the timestamp so availability doesn't expire
+                current_time = datetime.now()
                 return {
                     "thermostats": self._discovered_thermostats,
                     "system": self._system_data,
-                    "last_update": self._last_successful_update,
+                    "last_update": current_time,
                 }
     
     def _filter_relevant_variables(self, variables: List[str]) -> List[str]:
@@ -216,8 +222,10 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
             except (ValueError, TypeError):
                 return None
         elif attribute in ["maximum_floor_setpoint", "minimum_floor_setpoint", 
-                          "external_temperature", "eco_offset"]:
+                          "external_temperature"]:
             return self._convert_temperature(value)
+        elif attribute == "eco_offset":
+            return self._convert_temperature_offset(value)
         elif attribute in ["sw_version", "thermostat_type", "hw_type"]:
             return str(value)
         else:
@@ -237,6 +245,20 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
             fahrenheit = raw_val / 10.0
             celsius = (fahrenheit - 32) * 5.0 / 9.0
             return round(celsius, 1)
+        except (ValueError, TypeError):
+            return None
+    
+    def _convert_temperature_offset(self, value: Any) -> Optional[float]:
+        """Convert temperature offset from tenths of Fahrenheit offset to Celsius offset."""
+        try:
+            raw_val = int(value)
+            # 32767 is INT16_MAX, used as sentinel for "not available" or "no sensor"
+            if raw_val == 32767:
+                return None
+            # For offsets: divide by 10, then multiply by 5/9 (no subtraction of 32)
+            fahrenheit_offset = raw_val / 10.0
+            celsius_offset = fahrenheit_offset * 5.0 / 9.0
+            return round(celsius_offset, 1)
         except (ValueError, TypeError):
             return None
     
@@ -273,16 +295,30 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
     @property
     def is_available(self) -> bool:
         """Check if coordinator is available."""
+        # Use the built-in DataUpdateCoordinator availability first
+        if not self.last_update_success:
+            _LOGGER.debug("Coordinator not available: DataUpdateCoordinator has no successful updates")
+            return False
+            
+        # Also check our internal timestamp
         if not self._last_successful_update:
             _LOGGER.debug("Coordinator not available: no successful updates yet")
             return False
         
-        time_since_update = datetime.now() - self._last_successful_update
-        is_available = time_since_update < UNAVAILABLE_TIME
+        # Check both coordinator's last update and our internal tracking
+        coordinator_time_since = datetime.now() - self.last_update_success
+        internal_time_since = datetime.now() - self._last_successful_update
+        
+        coordinator_available = coordinator_time_since < UNAVAILABLE_TIME
+        internal_available = internal_time_since < UNAVAILABLE_TIME
+        
+        is_available = coordinator_available and internal_available
         
         if not is_available:
-            _LOGGER.warning("Coordinator unavailable: last update was %s ago", time_since_update)
+            _LOGGER.warning("Coordinator unavailable: coordinator last update %s ago, internal last update %s ago", 
+                          coordinator_time_since, internal_time_since)
         else:
-            _LOGGER.debug("Coordinator available: last update was %s ago", time_since_update)
+            _LOGGER.debug("Coordinator available: coordinator last update %s ago, internal last update %s ago", 
+                        coordinator_time_since, internal_time_since)
             
         return is_available
