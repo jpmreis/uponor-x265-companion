@@ -72,6 +72,41 @@ SENSOR_TYPES = {
         "icon": "mdi:leaf",
         "state_class": "measurement",
     },
+    "minimum_setpoint": {
+        "unit": "°C",
+        "device_class": "temperature",
+        "icon": "mdi:thermometer-low",
+        "state_class": "measurement",
+    },
+    "maximum_setpoint": {
+        "unit": "°C",
+        "device_class": "temperature",
+        "icon": "mdi:thermometer-high",
+        "state_class": "measurement",
+    },
+    "ufh_pwm_output": {
+        "unit": "%",
+        "icon": "mdi:gauge",
+        "state_class": "measurement",
+    },
+    "indoor_temp_switch": {
+        "unit": "°C",
+        "device_class": "temperature",
+        "icon": "mdi:home-thermometer",
+        "state_class": "measurement",
+    },
+    "outdoor_temp_switch": {
+        "unit": "°C",
+        "device_class": "temperature",
+        "icon": "mdi:thermometer",
+        "state_class": "measurement",
+    },
+    "hc_supply_limit": {
+        "unit": "°C",
+        "device_class": "temperature",
+        "icon": "mdi:thermometer-alert",
+        "state_class": "measurement",
+    },
     "sw_version": {
         "icon": "mdi:information-outline",
     },
@@ -155,6 +190,9 @@ BINARY_SENSOR_TYPES = {
     "heat_cool_mode": {
         "icon": "mdi:toggle-switch",
     },
+    "heat_cool_master_switch": {
+        "icon": "mdi:thermostat-auto",
+    },
     "eco_program": {
         "device_class": "running",
         "icon": "mdi:leaf",
@@ -203,6 +241,9 @@ VARIABLE_MAPPING = {
     "stat_general_system_alarm": "general_system_alarm",
     "eco_offset": "eco_offset",
     "stat_eco_program": "eco_program",
+    "minimum_setpoint": "minimum_setpoint",
+    "maximum_setpoint": "maximum_setpoint",
+    "ufh_pwm_output": "ufh_pwm_output",
     "stat_cb_eco_forced": "eco_forced",
     "mode_comfort_eco": "mode_comfort_eco",
     "sw_version": "sw_version",
@@ -217,4 +258,8 @@ SYSTEM_VARIABLE_MAPPING = {
     "sys_pump_management": "pump_management",
     "sys_valve_exercise": "valve_exercise",
     "sys_heat_cool_mode": "heat_cool_mode",
+    "sys_indoor_temp_switch": "indoor_temp_switch",
+    "sys_outdoor_temp_switch": "outdoor_temp_switch",
+    "sys_heat_cool_master_switch": "heat_cool_master_switch",
+    "sys_HC_supply_limit": "hc_supply_limit",
 }

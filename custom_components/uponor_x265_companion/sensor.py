@@ -44,7 +44,8 @@ async def async_setup_entry(
             if sensor_key in ["humidity", "humidity_setpoint", "valve_position_1", 
                              "valve_position_2", "floor_temp_max", "floor_temp_min",
                              "external_temperature", "eco_offset", "sw_version",
-                             "thermostat_type", "hw_type"]:
+                             "thermostat_type", "hw_type", "minimum_setpoint", 
+                             "maximum_setpoint", "ufh_pwm_output"]:
                 sensor_type = sensor_key.replace("_1", "").replace("_2", "")
                 if sensor_type == "valve_position":
                     sensor_type = "valve_position"
@@ -63,7 +64,8 @@ async def async_setup_entry(
     _LOGGER.debug("System data keys: %s", list(system_data.keys()))
     
     for sensor_key in ["average_room_temperature", "supply_temperature", 
-                      "outdoor_temperature"]:
+                      "outdoor_temperature", "indoor_temp_switch", "outdoor_temp_switch",
+                      "hc_supply_limit"]:
         if sensor_key in system_data:
             entities.append(
                 UponorCompanionSystemSensor(

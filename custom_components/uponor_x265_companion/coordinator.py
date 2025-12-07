@@ -201,12 +201,19 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
         """Process system-level data."""
         if key in SYSTEM_VARIABLE_MAPPING:
             mapped_name = SYSTEM_VARIABLE_MAPPING[key]
-            try:
-                raw_val = int(value)
-                if raw_val != 32767:  # Skip sentinel values
-                    self._system_data[mapped_name] = bool(raw_val)
-            except (ValueError, TypeError):
-                pass
+            # Handle temperature variables
+            if key in ["sys_indoor_temp_switch", "sys_outdoor_temp_switch", "sys_HC_supply_limit"]:
+                temp_value = self._convert_temperature(value)
+                if temp_value is not None:
+                    self._system_data[mapped_name] = temp_value
+            else:
+                # Boolean variables
+                try:
+                    raw_val = int(value)
+                    if raw_val != 32767:  # Skip sentinel values
+                        self._system_data[mapped_name] = bool(raw_val)
+                except (ValueError, TypeError):
+                    pass
     
     def _convert_value(self, attribute: str, value: Any) -> Any:
         """Convert raw value to appropriate type."""
@@ -218,13 +225,13 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
         except (ValueError, TypeError):
             pass  # Not an integer, continue with normal processing
             
-        if attribute in ["rh", "rh_setpoint", "head1_valve_pos_percent", "head2_valve_pos_percent"]:
+        if attribute in ["rh", "rh_setpoint", "head1_valve_pos_percent", "head2_valve_pos_percent", "ufh_pwm_output"]:
             try:
                 return int(value)
             except (ValueError, TypeError):
                 return None
         elif attribute in ["maximum_floor_setpoint", "minimum_floor_setpoint", 
-                          "external_temperature"]:
+                          "external_temperature", "minimum_setpoint", "maximum_setpoint"]:
             return self._convert_temperature(value)
         elif attribute == "eco_offset":
             return self._convert_temperature_offset(value)

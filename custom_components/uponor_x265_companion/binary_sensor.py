@@ -53,7 +53,7 @@ async def async_setup_entry(
     system_data = coordinator.get_system_data()
     for sensor_key in ["general_system_alarm", "controller_presence", "controller_lost",
                       "output_module_lost", "pump_management", "valve_exercise",
-                      "heat_cool_mode", "controller_demand"]:
+                      "heat_cool_mode", "controller_demand", "heat_cool_master_switch"]:
         if sensor_key in system_data:
             entities.append(
                 UponorCompanionSystemBinarySensor(
