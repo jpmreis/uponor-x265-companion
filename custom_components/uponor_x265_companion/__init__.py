@@ -6,8 +6,9 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers.event import async_track_time_interval
 
-from .const import DOMAIN
+from .const import DOMAIN, SCAN_INTERVAL
 from .coordinator import UponorCompanionCoordinator
 from .jnap import JNAPClient
 
@@ -32,7 +33,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     }
     
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    
+
+    # Schedule periodic updates - ensures polling continues even if no entities are listening
+    entry.async_on_unload(
+        async_track_time_interval(hass, coordinator.async_refresh, SCAN_INTERVAL)
+    )
+
     return True
 
 
