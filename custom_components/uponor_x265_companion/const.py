@@ -8,7 +8,7 @@ MODEL = "X265"
 CONF_HOST = "host"
 
 SCAN_INTERVAL = timedelta(seconds=30)
-UNAVAILABLE_TIME = timedelta(minutes=2)
+UNAVAILABLE_TIME = timedelta(minutes=5)
 
 SIGNAL_UPDATE = f"{DOMAIN}_update"
 

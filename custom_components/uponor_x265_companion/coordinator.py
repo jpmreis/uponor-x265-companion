@@ -12,6 +12,7 @@ from .const import (
     DOMAIN,
     SCAN_INTERVAL,
     SIGNAL_UPDATE,
+    UNAVAILABLE_TIME,
     VARIABLE_MAPPING,
     SYSTEM_VARIABLE_MAPPING,
 )
@@ -78,7 +79,17 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
             
         except Exception as err:
             _LOGGER.error("Error fetching data: %s", err)
-            raise UpdateFailed(f"Error communicating with controller: {err}") from err
+            # Only raise UpdateFailed if this is the first update or we haven't had a successful update in a while
+            if not self._last_successful_update or (datetime.now() - self._last_successful_update) > timedelta(minutes=10):
+                raise UpdateFailed(f"Error communicating with controller: {err}") from err
+            else:
+                # For temporary failures, log but don't fail the entire update
+                _LOGGER.warning("Temporary failure communicating with controller, using cached data: %s", err)
+                return {
+                    "thermostats": self._discovered_thermostats,
+                    "system": self._system_data,
+                    "last_update": self._last_successful_update,
+                }
     
     def _filter_relevant_variables(self, variables: List[str]) -> List[str]:
         """Filter variables to only those we're interested in."""
@@ -174,10 +185,13 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
                 return value
     
     def _convert_temperature(self, value: Any) -> float:
-        """Convert temperature value from raw format to Celsius."""
+        """Convert temperature value from tenths of Fahrenheit to Celsius."""
         try:
             raw_val = int(value)
-            return raw_val / 10.0 if raw_val > 100 else raw_val
+            # Convert from tenths of Fahrenheit to Celsius
+            fahrenheit = raw_val / 10.0
+            celsius = (fahrenheit - 32) * 5.0 / 9.0
+            return round(celsius, 1)
         except (ValueError, TypeError):
             return 0.0
     
@@ -198,5 +212,15 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
     def is_available(self) -> bool:
         """Check if coordinator is available."""
         if not self._last_successful_update:
+            _LOGGER.debug("Coordinator not available: no successful updates yet")
             return False
-        return (datetime.now() - self._last_successful_update) < timedelta(minutes=2)
+        
+        time_since_update = datetime.now() - self._last_successful_update
+        is_available = time_since_update < UNAVAILABLE_TIME
+        
+        if not is_available:
+            _LOGGER.warning("Coordinator unavailable: last update was %s ago", time_since_update)
+        else:
+            _LOGGER.debug("Coordinator available: last update was %s ago", time_since_update)
+            
+        return is_available
