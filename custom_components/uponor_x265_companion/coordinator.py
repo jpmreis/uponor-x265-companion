@@ -41,18 +41,28 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
         try:
             all_variables = await self.client.discover_variables()
             
+            _LOGGER.debug("Discovered %d total variables from controller", len(all_variables) if all_variables else 0)
+            _LOGGER.debug("First 10 discovered variables: %s", all_variables[:10] if all_variables else [])
+            
             if not all_variables:
                 raise UpdateFailed("Failed to discover variables from controller")
             
             relevant_variables = self._filter_relevant_variables(all_variables)
+            _LOGGER.debug("Filtered to %d relevant variables: %s", len(relevant_variables), relevant_variables[:10] if relevant_variables else [])
             
             data = await self.client.get_attributes(relevant_variables)
             
             if not data:
                 raise UpdateFailed("Failed to get attributes from controller")
             
+            _LOGGER.debug("Retrieved data for %d variables", len(data))
+            _LOGGER.debug("Sample data keys: %s", list(data.keys())[:10] if data else [])
+            
             self._process_data(data)
             self._last_successful_update = datetime.now()
+            
+            _LOGGER.debug("Processed data - found %d thermostats, %d system variables", 
+                         len(self._discovered_thermostats), len(self._system_data))
             
             async_dispatcher_send(self.hass, SIGNAL_UPDATE)
             

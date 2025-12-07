@@ -33,8 +33,12 @@ async def async_setup_entry(
     
     await coordinator.async_request_refresh()
     
+    _LOGGER.debug("Setting up sensors. Found %d thermostats: %s", 
+                 len(coordinator.thermostats), coordinator.thermostats)
+    
     for thermostat_id in coordinator.thermostats:
         thermostat_data = coordinator.get_thermostat_data(thermostat_id)
+        _LOGGER.debug("Thermostat %s data keys: %s", thermostat_id, list(thermostat_data.keys()))
         
         for sensor_key, sensor_value in thermostat_data.items():
             if sensor_key in ["humidity", "humidity_setpoint", "valve_position_1", 
@@ -56,6 +60,8 @@ async def async_setup_entry(
                     )
     
     system_data = coordinator.get_system_data()
+    _LOGGER.debug("System data keys: %s", list(system_data.keys()))
+    
     for sensor_key in ["average_room_temperature", "supply_temperature", 
                       "outdoor_temperature"]:
         if sensor_key in system_data:
@@ -67,6 +73,7 @@ async def async_setup_entry(
                 )
             )
     
+    _LOGGER.debug("Created %d sensor entities total", len(entities))
     async_add_entities(entities)
 
 
