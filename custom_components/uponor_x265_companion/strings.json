@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Uponor X265 Companion",
+        "description": "Set up Uponor X265 Companion integration",
+        "data": {
+          "host": "Host IP address"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Uponor X265 controller. Please check the host IP address and ensure the controller is accessible.",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "Device is already configured"
+    }
+  }
+}
