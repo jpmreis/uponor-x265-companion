@@ -35,8 +35,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Schedule periodic updates - ensures polling continues even if no entities are listening
+    # async_track_time_interval passes a datetime argument, so we wrap the call
+    async def _async_update(_now=None):
+        """Wrapper to handle time interval callback."""
+        await coordinator.async_refresh()
+
     entry.async_on_unload(
-        async_track_time_interval(hass, coordinator.async_refresh, SCAN_INTERVAL)
+        async_track_time_interval(hass, _async_update, SCAN_INTERVAL)
     )
 
     return True
