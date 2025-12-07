@@ -37,6 +37,7 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
         self._system_data: Dict[str, Any] = {}
         self._custom_names: Dict[str, str] = {}
         self._last_successful_update: Optional[datetime] = None
+        self._last_response_time: Optional[datetime] = None
         
     async def _async_update_data(self) -> Dict[str, Any]:
         """Fetch data from controller."""
@@ -67,6 +68,7 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
             
             self._process_data(data)
             self._last_successful_update = datetime.now()
+            self._last_response_time = self._last_successful_update
             
             _LOGGER.debug("Update successful - found %d thermostats, %d system variables. Last update: %s", 
                          len(self._discovered_thermostats), len(self._system_data), self._last_successful_update)
@@ -90,12 +92,12 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
                 time_since_last = datetime.now() - self._last_successful_update
                 _LOGGER.warning("Temporary failure communicating with controller (last success %s ago), using cached data: %s", 
                               time_since_last, err)
-                # Update the timestamp so availability doesn't expire
-                current_time = datetime.now()
+                # Update the response time so availability doesn't expire
+                self._last_response_time = datetime.now()
                 return {
                     "thermostats": self._discovered_thermostats,
                     "system": self._system_data,
-                    "last_update": current_time,
+                    "last_update": self._last_response_time,
                 }
     
     def _filter_relevant_variables(self, variables: List[str]) -> List[str]:
@@ -295,23 +297,22 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
     @property
     def is_available(self) -> bool:
         """Check if coordinator is available."""
-        # Check if DataUpdateCoordinator has had any successful updates
-        if not self.last_update_success:
-            _LOGGER.debug("Coordinator not available: DataUpdateCoordinator reports no successful updates")
-            return False
-            
-        # Check our internal timestamp
-        if not self._last_successful_update:
-            _LOGGER.debug("Coordinator not available: no successful updates yet")
+        # Check if we've ever had a response
+        if not self._last_response_time:
+            _LOGGER.debug("Coordinator not available: no responses yet")
             return False
         
-        # Check if our last update is within the timeout window
-        internal_time_since = datetime.now() - self._last_successful_update
-        internal_available = internal_time_since < UNAVAILABLE_TIME
+        # Use response time for availability (updates even when returning cached data)
+        time_since_response = datetime.now() - self._last_response_time
+        is_available = time_since_response < UNAVAILABLE_TIME
         
-        if not internal_available:
-            _LOGGER.warning("Coordinator unavailable: internal last update %s ago", internal_time_since)
-        else:
-            _LOGGER.debug("Coordinator available: internal last update %s ago", internal_time_since)
+        if not is_available:
+            _LOGGER.warning("Coordinator unavailable: last response %s ago", time_since_response)
+        
+        # Log separately about data freshness for debugging
+        if self._last_successful_update:
+            time_since_data = datetime.now() - self._last_successful_update
+            if time_since_data > timedelta(minutes=2):
+                _LOGGER.debug("Note: Using cached data from %s ago", time_since_data)
             
-        return internal_available
+        return is_available
