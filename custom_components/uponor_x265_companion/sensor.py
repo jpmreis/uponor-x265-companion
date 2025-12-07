@@ -106,7 +106,7 @@ class UponorCompanionSensor(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return device information."""
         return DeviceInfo(
-            identifiers={(DOMAIN, self._thermostat_id)},
+            identifiers={("uponorx265", self._thermostat_id)},
             name=f"Thermostat {self._thermostat_id}",
             manufacturer=MANUFACTURER,
             model=MODEL,
@@ -171,7 +171,7 @@ class UponorCompanionSystemSensor(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return device information."""
         return DeviceInfo(
-            identifiers={(DOMAIN, "system")},
+            identifiers={("uponorx265", "system")},
             name="Uponor X265 System",
             manufacturer=MANUFACTURER,
             model=MODEL,
