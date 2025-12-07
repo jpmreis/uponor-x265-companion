@@ -7,6 +7,6 @@
   "documentation": "https://github.com/jpmreis/uponor-x265-companion",
   "iot_class": "local_polling",
   "requirements": ["aiohttp>=3.8.0"],
-  "version": "1.0.7",
+  "version": "1.0.8",
   "issue_tracker": "https://github.com/jpmreis/uponor-x265-companion/issues"
 }
