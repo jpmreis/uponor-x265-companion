@@ -50,7 +50,11 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
             relevant_variables = self._filter_relevant_variables(all_variables)
             _LOGGER.debug("Filtered to %d relevant variables: %s", len(relevant_variables), relevant_variables[:10] if relevant_variables else [])
             
-            data = await self.client.get_attributes(relevant_variables)
+            # Get all data and filter afterwards since specific requests seem to fail
+            all_data = await self.client.get_attributes([])
+            
+            # Filter to only relevant variables
+            data = {k: v for k, v in all_data.items() if k in relevant_variables} if all_data else None
             
             if not data:
                 raise UpdateFailed("Failed to get attributes from controller")
