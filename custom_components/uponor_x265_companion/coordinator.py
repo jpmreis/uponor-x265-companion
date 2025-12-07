@@ -295,30 +295,23 @@ class UponorCompanionCoordinator(DataUpdateCoordinator):
     @property
     def is_available(self) -> bool:
         """Check if coordinator is available."""
-        # Use the built-in DataUpdateCoordinator availability first
+        # Check if DataUpdateCoordinator has had any successful updates
         if not self.last_update_success:
-            _LOGGER.debug("Coordinator not available: DataUpdateCoordinator has no successful updates")
+            _LOGGER.debug("Coordinator not available: DataUpdateCoordinator reports no successful updates")
             return False
             
-        # Also check our internal timestamp
+        # Check our internal timestamp
         if not self._last_successful_update:
             _LOGGER.debug("Coordinator not available: no successful updates yet")
             return False
         
-        # Check both coordinator's last update and our internal tracking
-        coordinator_time_since = datetime.now() - self.last_update_success
+        # Check if our last update is within the timeout window
         internal_time_since = datetime.now() - self._last_successful_update
-        
-        coordinator_available = coordinator_time_since < UNAVAILABLE_TIME
         internal_available = internal_time_since < UNAVAILABLE_TIME
         
-        is_available = coordinator_available and internal_available
-        
-        if not is_available:
-            _LOGGER.warning("Coordinator unavailable: coordinator last update %s ago, internal last update %s ago", 
-                          coordinator_time_since, internal_time_since)
+        if not internal_available:
+            _LOGGER.warning("Coordinator unavailable: internal last update %s ago", internal_time_since)
         else:
-            _LOGGER.debug("Coordinator available: coordinator last update %s ago, internal last update %s ago", 
-                        coordinator_time_since, internal_time_since)
+            _LOGGER.debug("Coordinator available: internal last update %s ago", internal_time_since)
             
-        return is_available
+        return internal_available
