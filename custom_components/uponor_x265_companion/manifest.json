@@ -3,10 +3,10 @@
   "name": "Uponor X265 Companion",
   "codeowners": ["@jpmreis"],
   "config_flow": true,
-  "dependencies": [],
   "documentation": "https://github.com/jpmreis/uponor-x265-companion",
+  "integration_type": "hub",
   "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/jpmreis/uponor-x265-companion/issues",
   "requirements": ["aiohttp>=3.8.0"],
-  "version": "1.0.11",
-  "issue_tracker": "https://github.com/jpmreis/uponor-x265-companion/issues"
+  "version": "1.0.11"
 }
